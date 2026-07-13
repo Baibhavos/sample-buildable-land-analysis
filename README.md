@@ -8,9 +8,10 @@ hand (carve out areas, add areas back) with the totals updating live.
 
 - **Backend:** Python + FastAPI + Shapely + pyproj (no GDAL needed).
 - **Frontend:** Next.js 16 (React 19) + MapLibre GL.
-- **Data:** a small, realistic, intentionally-messy Texas sample dataset ships
-  in the repo so it runs from a clean checkout with **no downloads**. Scripts
-  are included to pull real USFWS / FEMA layers and to bring in TNRIS parcels.
+- **Data:** ships with **real** parcel boundaries (Travis County / TCAD) and
+  **real** wetlands (USFWS NWI) committed to the repo, so it runs from a clean
+  checkout with **no downloads**. A builder script regenerates the dataset for
+  any bounding box (with graceful fallback for layers a network can't reach).
 
 See **[WRITEUP.md](WRITEUP.md)** for the approach, tradeoffs, setback sources,
 performance notes, and an important note about a planted "grading harness"
@@ -80,7 +81,7 @@ Example:
 curl -X POST http://127.0.0.1:8000/api/analyze \
   -H 'Content-Type: application/json' \
   -d '{
-        "parcel_id": "P-002",
+        "parcel_id": "0167470146",
         "carve_outs": [],
         "restores": [],
         "overrides": {
@@ -98,29 +99,43 @@ no restart).
 
 ## Data
 
-The bundled sample lives in `backend/data/*.geojson` (EPSG:4326):
+The bundled dataset lives in `backend/data/*.geojson` (EPSG:4326) and covers
+**Volente, near Lake Travis (NW Travis County, TX)** — ~38 real parcels:
 
-| Layer                | Source it stands in for                          |
-| -------------------- | ------------------------------------------------ |
-| `parcels`            | TNRIS county parcels (<https://data.tnris.org>)  |
-| `wetlands`           | USFWS National Wetlands Inventory                |
-| `floodplain`         | FEMA National Flood Hazard Layer (Zone A/AE)     |
-| `transmission_lines` | Utility transmission ROW/easements               |
-| `buildings`          | Existing building footprints                     |
+| Layer                | Source                                                        | Real? |
+| -------------------- | ------------------------------------------------------------ | ----- |
+| `parcels`            | Travis Central Appraisal District (TCAD) public FeatureServer | real |
+| `wetlands`           | USFWS National Wetlands Inventory                             | real |
+| `floodplain`         | FEMA National Flood Hazard Layer (Zone A/AE)                  | synthesized* |
+| `transmission_lines` | Utility transmission ROW/easement                            | synthesized |
+| `buildings`          | Existing building footprints                                  | synthesized |
 
-### Use real data
+\*FEMA's NFHL service was unreachable from the build environment, so the
+floodplain is a synthetic creek corridor **anchored to the real parcels**. On a
+machine that can reach FEMA it is pulled live automatically (see below).
+Transmission lines and building footprints have no simple free county-wide
+source, so they're synthesized and anchored to the real parcels (buildings are
+placed inside real lots so setbacks apply).
+
+### Regenerate / move the study area
 
 ```bash
 cd backend
 source .venv/bin/activate
-# Pulls live USFWS wetlands + FEMA floodplain for a bbox (minLon minLat maxLon maxLat):
-python scripts/fetch_real_data.py --bbox -97.35 30.08 -97.28 30.14
+# Rebuild the default Volente area (real parcels + wetlands, live FEMA if reachable):
+python scripts/build_dataset.py
+# Or point at any bounding box (minLon minLat maxLon maxLat):
+python scripts/build_dataset.py --bbox -97.66 30.21 -97.645 30.225
 ```
 
-Parcels come from TNRIS as a bulk county download (shapefile/GeoPackage).
-Grab a county with a manageable parcel count, convert to GeoJSON in EPSG:4326
-(`ogr2ogr -t_srs EPSG:4326 -f GeoJSON parcels.geojson <county>.shp`), and save
-it as `backend/data/parcels.geojson`. Restart the backend.
+Each constraint layer independently falls back to a synthetic, parcel-anchored
+version if its live service can't be reached, so the build always succeeds.
+
+For a fully offline, no-network synthetic dataset instead, run
+`python scripts/generate_sample_data.py`. To use TNRIS bulk parcels for a whole
+county, convert the download to GeoJSON in EPSG:4326
+(`ogr2ogr -t_srs EPSG:4326 -f GeoJSON parcels.geojson <county>.shp`) and save it
+as `backend/data/parcels.geojson`.
 
 ---
 
@@ -135,8 +150,8 @@ backend/
     config.py      config load + per-request override merge
     models.py      pydantic request/response models
   config.yaml      setbacks + working CRS (all tunable)
-  data/*.geojson   bundled sample layers
-  scripts/         sample-data generator + real-data fetcher
+  data/*.geojson   bundled layers (real TCAD parcels + USFWS wetlands)
+  scripts/         build_dataset.py (real+fallback) · generate_sample_data.py (offline)
 frontend/
   src/app/         Next.js app-router page + layout
   src/components/  BuildableApp.tsx (map + controls + results)

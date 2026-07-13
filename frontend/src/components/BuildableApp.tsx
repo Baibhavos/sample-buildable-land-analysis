@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { Map as MLMap, MapMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { GeoJSON as GeoJSONObject } from "geojson";
 import {
   analyze,
   AnalyzeResponse,
@@ -116,7 +117,7 @@ export default function BuildableApp() {
     const map = mapRef.current;
     if (!map) return;
     const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined;
-    if (src) src.setData(data as GeoJSON.GeoJSON);
+    if (src) src.setData(data as GeoJSONObject);
   }, []);
 
   const finishDraft = useCallback(() => {
@@ -136,7 +137,7 @@ export default function BuildableApp() {
     const map = new maplibregl.Map({
       container: mapContainer.current,
       style: BASE_STYLE,
-      center: [-97.3, 30.11],
+      center: [-97.862, 30.437], // Volente, near Lake Travis, TX (auto-fits to parcels on load)
       zoom: 13,
     });
     mapRef.current = map;

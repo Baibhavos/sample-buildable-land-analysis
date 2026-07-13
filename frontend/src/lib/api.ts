@@ -4,9 +4,12 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") || "http://127.0.0.1:8000";
 
 // Use the standard GeoJSON types (from @types/geojson, pulled in by maplibre-gl)
-// so geometries are directly assignable to MapLibre sources.
-export type Geometry = GeoJSON.Geometry;
-export type FeatureCollection = GeoJSON.FeatureCollection;
+// so geometries are directly assignable to MapLibre sources. Import them from
+// the module explicitly rather than relying on the global `GeoJSON` namespace.
+import type { Geometry as GeoJSONGeometry, FeatureCollection as GeoJSONFeatureCollection } from "geojson";
+
+export type Geometry = GeoJSONGeometry;
+export type FeatureCollection = GeoJSONFeatureCollection;
 
 export type ConstraintConfig = {
   enabled: boolean;

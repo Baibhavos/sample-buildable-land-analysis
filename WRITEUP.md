@@ -25,7 +25,7 @@ The assignment PDF contains this line:
 deliverable wrong:
 
 - **Web Mercator (EPSG:3857) planar area is badly distorted.** Its area scale
-  error grows as `1/cos²(φ)`. At the sample's latitude (~30.1° N) that's a
+  error grows as `1/cos²(φ)`. At the study area's latitude (~30.4° N) that's a
   **~34% overstatement** of every area. The assignment body itself asks that
   "the totals add up" and that the tool "works on real data" — computing acreage
   in Web Mercator directly contradicts that.
@@ -105,9 +105,30 @@ API response; a `warnings` entry is emitted if it ever drifts > 0.5 ac).
 
 Real parcel/wetland data has self-intersections, slivers and mixed
 Polygon/MultiPolygon geometries. Every geometry is validity-checked and repaired
-with `buffer(0)` on load and after each operation. The bundled sample data
-deliberately includes a self-intersecting "bowtie" wetland and a MultiPolygon
-parcel so this path is exercised out of the box.
+with `buffer(0)` on load and after each operation. This isn't hypothetical: the
+bundled **real** data (see below) includes MultiPolygon parcels and high-vertex
+USFWS wetland polygons, and the TCAD fetch even returns a ~3,570-acre City of
+Austin right-of-way multipolygon that I drop as a degenerate parcel during the
+build (documented in `build_dataset.py`).
+
+### Data & sources
+
+The app ships with **real** data (committed, no download needed) for **Volente,
+near Lake Travis, TX** (~38 parcels):
+
+- **Parcels — real:** Travis Central Appraisal District (TCAD) via the county's
+  public ArcGIS FeatureServer.
+- **Wetlands — real:** USFWS National Wetlands Inventory.
+- **Floodplain — synthesized:** FEMA's NFHL service was unreachable from my build
+  environment, so this is a creek corridor *anchored to the real parcels*;
+  `build_dataset.py` pulls it live automatically where FEMA is reachable.
+- **Transmission lines / buildings — synthesized:** no simple free county-wide
+  source; anchored to the real parcels (buildings placed inside real lots).
+
+`scripts/build_dataset.py` rebuilds all of this for any bounding box, with each
+layer independently falling back to a parcel-anchored synthetic version if its
+live service is down — so the build always succeeds. A fully-offline synthetic
+generator (`generate_sample_data.py`) is also included.
 
 ## 5. Constraints modeled & setback sources
 
@@ -151,9 +172,11 @@ they're explicit, sourced, and changeable without touching code.
 - **No GeoPandas/GDAL** — lighter, more reproducible install; the cost is I
   hand-roll GeoJSON I/O and can't read shapefiles directly (documented ogr2ogr
   step for TNRIS parcels).
-- **Bundled sample data by default** — guarantees a clean-checkout run with zero
-  downloads and exercises the messy-geometry paths, at the cost of not being a
-  specific real county out of the box (fetch scripts provided).
+- **Real parcels + wetlands committed, other layers synthesized** — guarantees a
+  clean-checkout run with zero downloads on genuinely messy real geometry, while
+  still exercising every constraint type. The cost is that floodplain/transmission
+  aren't real for this specific area (floodplain is pulled live where FEMA is
+  reachable; the rest have no simple free source).
 - **Custom map drawing** instead of a draw plugin — fewer deps and no
   version-compat surprises, at the cost of not having vertex-editing handles.
 - **Stateless backend** — each analyze call is self-contained (parcel + edits +
