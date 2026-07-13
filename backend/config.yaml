@@ -1,0 +1,62 @@
+# ---------------------------------------------------------------------------
+# Buildable Land Analysis - configuration
+#
+# Every value here can be overridden per-request via the /api/analyze body
+# (see `overrides` in the request), so the map UI can change a buffer and
+# re-run without editing code or restarting the server.
+#
+# Distances are expressed in FEET (US land-use regulation is written in feet)
+# and converted to meters internally for the metric working projection.
+# ---------------------------------------------------------------------------
+
+# Working coordinate reference system used for ALL geometric operations
+# (buffering + area). We deliberately use a LOCAL metric projection so both
+# distances and areas are accurate for the study county.
+#
+#   EPSG:32614  -> UTM zone 14N (central Texas). Distance & area error < 0.1%.
+#   EPSG:5070   -> NAD83 CONUS Albers Equal-Area (use for multi-zone extents).
+#
+# NOTE: We intentionally do NOT compute areas in EPSG:3857 (Web Mercator).
+# Web Mercator planar area is distorted by ~1/cos(lat)^2 (~30%+ at Texas
+# latitudes) and would make every acreage figure wrong. See WRITEUP.md.
+working_crs: "EPSG:32614"
+
+# Regulatory setback held in from the parcel boundary (zoning front/side/rear).
+# Typical suburban residential combined setback envelope. Source: model zoning
+# ordinances commonly specify 25 ft front / 10-15 ft side/rear; 25 ft is a
+# conservative single value. Configurable per request.
+boundary_setback_ft: 25.0
+
+# Constraint layers. `enabled` toggles the layer; `setback_ft` is the buffer
+# distance applied around each feature before it is removed from the parcel.
+constraints:
+  wetlands:
+    enabled: true
+    setback_ft: 100.0
+    label: "Wetlands (USFWS NWI) + buffer"
+    # Source: USFWS National Wetlands Inventory. 100 ft is a common riparian /
+    # wetland vegetative buffer in local ordinances (range 25-150 ft); many TX
+    # jurisdictions and TCEQ guidance cluster around 50-100 ft.
+
+  floodplain:
+    enabled: true
+    setback_ft: 25.0
+    label: "FEMA 100-yr floodplain (Zone A/AE) + freeboard buffer"
+    # Source: FEMA NFHL Special Flood Hazard Areas. The floodplain itself is
+    # excluded; a modest 25 ft buffer approximates freeboard / channel-migration
+    # margins used by many communities.
+
+  transmission_lines:
+    enabled: true
+    setback_ft: 75.0
+    label: "Transmission-line easement (half-width)"
+    # Source: utility ROW standards. A 138-230 kV line typically occupies a
+    # 100-150 ft easement; 75 ft each side of the centerline (~150 ft total)
+    # is a defensible default. Lower/higher voltages differ - configurable.
+
+  buildings:
+    enabled: true
+    setback_ft: 10.0
+    label: "Existing building footprints + clearance"
+    # Source: parcel building footprints. 10 ft clearance approximates a
+    # fire-separation / access margin around existing structures.
